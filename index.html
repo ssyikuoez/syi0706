@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣歷史事件挑戰賽</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'history-game';
+
+        signInAnonymously(auth);
+
+        window.submitScore = async (name, time) => {
+            const colRef = collection(db, 'artifacts', appId, 'users', 'global', 'leaderboard');
+            await addDoc(colRef, { name, time, timestamp: new Date() });
+            alert("成績已記錄！");
+        };
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 flex flex-col items-center font-sans">
+
+    <h1 class="text-3xl font-bold text-gray-800 mb-4">台灣歷史排序挑戰</h1>
+    <div id="timer" class="text-xl font-mono text-gray-600 mb-6">時間: 0 秒</div>
+
+    <div id="card-pool" class="flex flex-wrap gap-3 justify-center mb-10">
+        <!-- 卡片將由 JS 產生 -->
+    </div>
+
+    <div id="slots-container" class="flex gap-3 mb-8">
+        <!-- 槽位將由 JS 產生 -->
+    </div>
+
+    <button onclick="checkAnswer()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition">檢查並提交成績</button>
+
+    <script>
+        const events = ["史前時代", "荷蘭建城", "鄭氏時期", "清領初期", "日治時期", "戰後時期"];
+        let startTime = Date.now();
+        let timerInterval = setInterval(() => {
+            document.getElementById('timer').textContent = `時間: ${Math.floor((Date.now() - startTime)/1000)} 秒`;
+        }, 1000);
+
+        // 初始化
+        const pool = document.getElementById('card-pool');
+        const slotsContainer = document.getElementById('slots-container');
+        
+        events.forEach((evt, i) => {
+            const card = document.createElement('div');
+            card.id = `card-${i}`;
+            card.className = "bg-white p-4 shadow-md rounded-lg cursor-grab w-32 text-center border border-gray-200 hover:shadow-xl transition";
+            card.draggable = true;
+            card.textContent = evt;
+            card.ondragstart = (e) => e.dataTransfer.setData("text", e.target.id);
+            pool.appendChild(card);
+
+            const slot = document.createElement('div');
+            slot.className = "slot w-32 h-20 border-2 border-dashed border-gray-400 rounded-lg flex items-center justify-center bg-white";
+            slot.ondrop = drop;
+            slot.ondragover = (e) => e.preventDefault();
+            slotsContainer.appendChild(slot);
+        });
+
+        // 隨機打亂
+        for (let i = pool.children.length; i >= 0; i--) pool.appendChild(pool.children[Math.random() * i | 0]);
+
+        function drop(e) {
+            e.preventDefault();
+            const data = e.dataTransfer.getData("text");
+            if (e.target.classList.contains('slot') && !e.target.hasChildNodes()) {
+                e.target.appendChild(document.getElementById(data));
+            }
+        }
+
+        async function checkAnswer() {
+            const slots = document.querySelectorAll('.slot');
+            const current = Array.from(slots).map(s => s.children[0]?.textContent || "");
+            const duration = Math.floor((Date.now() - startTime)/1000);
+
+            if (current.every((val, index) => val === events[index])) {
+                clearInterval(timerInterval);
+                confetti({ particleCount: 200, spread: 90 });
+                const name = prompt(`正確！耗時 ${duration} 秒，請輸入名字：`);
+                if (name) await window.submitScore(name, duration);
+                location.reload();
+            } else {
+                alert("順序還有點不對喔，再試試看！");
+            }
+        }
+    </script>
+</body>
+</html>
